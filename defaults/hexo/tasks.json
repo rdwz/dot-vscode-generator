@@ -1,0 +1,35 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "0.1.0",
+  "command": "hexo",
+  "isShellCommand": true,
+  "showOutput": "always",
+  "suppressTaskName": true,
+  "tasks": [
+    {
+      "taskName": "Generate",
+      "args": ["g", "&&", "gulp"]
+    },
+    {
+      "taskName": "Deploy",
+      "args": ["d"]
+    },
+    {
+      "taskName": "Generate and Deploy",
+      "args": ["g", "&&", "hexo", "d"]
+    },
+    {
+      "taskName": "Serve",
+      "args": [
+        "s"
+      ]
+    },
+    {
+      "taskName": "Clean",
+      "args": [
+        "clean"
+      ]
+    }
+  ]
+}

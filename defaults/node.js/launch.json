@@ -1,0 +1,21 @@
+{
+  // See http://code.visualstudio.com/docs/editor/debugging#_launch-configurations
+  // for setting up 'launch.json' for node debugging
+  "version": "0.2.0",
+  "configurations":   [
+    {
+      "name": "Launch",
+      "program": "${workspaceRoot}\\bin\\www",
+      "type": "node",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceRoot}"
+    },
+    {
+      "name": "Attach",
+      "port": 5858,
+      "type": "node",
+      "request": "attach"
+    }
+  ]
+}

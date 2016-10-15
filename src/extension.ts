@@ -7,6 +7,7 @@ import {
   Disposable,
   InputBoxOptions
 } from "vscode";
+import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
 import * as http from "http";
@@ -16,33 +17,66 @@ import * as request from "request";
 const Promise = require("bluebird");
 const extract = require("extract-zip");
 
+const projectType: Array<string> = [];
 
-const ProjectType = [];
+const projectMap: Map<string, string> = new Map();
+projectMap.set("C++", "cplusplus");
+projectMap.set("TypeScript", "typescript");
+projectMap.set("Python", "python");
+projectMap.set("PHP", "php");
+projectMap.set("Go", "go");
+projectMap.set("Node.js", "node.js");
+projectMap.set("C", "c");
+projectMap.set("Hexo", "hexo");
 
-const ProjectMap: Map<string, string> = new Map();
-ProjectMap.set("C++", "cplusplus");
-ProjectMap.set("TypeScript", "typescript");
-
-ProjectMap.forEach((value, index) => {
-  ProjectType.push(value);
+projectMap.forEach((value, index) => {
+  projectType.push(index);
 });
 
-const errors = {
-  "installNeeded": "Please run `install` command first"
-};
+const mkdirAsync: (path: string | Buffer) => Promise<void> = Promise.promisify(fs.mkdir);
+const unlinkAsync: (path: string | Buffer) => Promise<void> = Promise.promisify(fs.unlink);
+const extractAsync: (fromPath: string | Buffer, options?: Object) => Promise<void> = Promise.promisify(extract);
+const readdirAsync: (path: string | Buffer) => Promise<Array<string>> = Promise.promisify(fs.readdir);
+const writeFileAsync: (path: string | Buffer, data: any) => Promise<void> = Promise.promisify(fs.writeFile);
 
+/**
+ * promise version of fs.exists
+ * 
+ * @param {string} path
+ * @returns {Promise<boolean>}
+ */
 function existsAsync(path: string): Promise<boolean> {
   return new Promise((resolve, reject) => {
-    fs.exists(path, (exists: boolean): void => { return resolve(exists); });
+    fs.exists(path, (exists: boolean): void => {
+      return resolve(exists);
+    });
   });
 };
 
-const mkdirAsync = Promise.promisify(fs.mkdir);
-const unlinkAsync = Promise.promisify(fs.unlink);
-const extractAsync = Promise.promisify(extract);
-const readdirAsync = Promise.promisify(fs.readdir);
-const writeFileAsync = Promise.promisify(fs.writeFile);
+/**
+ * promise version
+ * 
+ * @param {string} path
+ * @returns {Promise<void>}
+ */
+function existsOrMkdirAsync(path: string): Promise<void> {
+  return existsAsync(path)
+    .then((exist) => { 
+      if (!exist) {
+        return mkdirAsync(path);
+      }
+      return Promise.resolve(() => { });
+    }).catch((err) => {
+      console.error("wtf??", err);
+    });
+};
 
+/**
+ * using pipe to copy files
+ * 
+ * @param {string} fromPath
+ * @param {string} toPath
+ */
 function copyFileSync(fromPath: string, toPath: string) {
   if (fs.existsSync(toPath)) {
     fs.unlinkSync(toPath);
@@ -52,6 +86,12 @@ function copyFileSync(fromPath: string, toPath: string) {
   fromStream.pipe(toStream);
 }
 
+/**
+ * remove a dir
+ * 
+ * @param {string} path_
+ * @returns
+ */
 function removeDirSync(path_: string) {
   if (!fs.existsSync(path_)) {
     return;
@@ -68,6 +108,11 @@ function removeDirSync(path_: string) {
   fs.rmdirSync(path_);
 }
 
+/**
+ * downlaod `dotvscodeGenerator.zip` from internet and unzip it
+ * 
+ * @returns {Promise<void>}
+ */
 function installAsync(): Promise<void> {
   const settings = getSettings();
   return new Promise((resolve, reject) => {
@@ -87,54 +132,124 @@ function installAsync(): Promise<void> {
   });
 }
 
+/**
+ * install needed
+ * remove the `.vscode.generator` dir
+ * 
+ * @returns {Promise<void>}
+ */
 function uninstallAsync(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const settings = getSettings();
-    removeDirSync(settings.homeVSCodeDir);
-    removeDirSync(settings.homeUserVSCodeDir);
-    resolve();
+  return checkInstallAsync().then(() => {
+    return new Promise((resolve, reject) => {
+      const settings = getSettings();
+      removeDirSync(settings.homeVSCodeDir);
+      removeDirSync(settings.homeUserVSCodeDir);
+      resolve();
 
-    // unlinkAsync(settings.homeUserVSCodeDir).then(() => {
-    //   return unlinkAsync(settings.home);
-    // }).then(() => {
-    //   window.showInformationMessage("Uninstallting completed!");
-    // }).catch((err) => {
-    //   window.showErrorMessage(JSON.stringify(err));
-    // });
+      // unlinkAsync(settings.homeUserVSCodeDir).then(() => {
+      //   return unlinkAsync(settings.home);
+      // }).then(() => {
+      //   window.showInformationMessage("Uninstallting completed!");
+      // }).catch((err) => {
+      //   window.showErrorMessage(JSON.stringify(err));
+      // });
+    });
+  });  
+}
+
+/**
+ * check if install has been called
+ * 
+ * @returns {Promise<void>}
+ */
+function checkInstallAsync(): Promise<void> {
+  const settings = getSettings();
+  return new Promise((resolve, reject) => {
+    existsAsync(settings.homeVSCodeDir).then((installed) => {
+      if (installed) {
+        return resolve();
+      } else {
+        return reject("Please ensure you did install first");
+      }
+    });
   });
 }
 
+/**
+ * 
+ * 
+ * @class Generator
+ */
 class Generator {
+  /**
+   * type of project
+   * 
+   * @type {string}
+   * @memberOf Generator
+   */
   type: string = null;
-  constructor(type: string) { this.type = type; }
 
+  /**
+   * Creates an instance of Generator.
+   * 
+   * @param {string} type
+   * 
+   * @memberOf Generator
+   */
+  constructor(type: string) {
+    this.type = projectMap.get(type);
+  }
+
+  /**
+   * generate .vscode dir inside workspace
+   * 
+   * @returns {Promise<void>}
+   * 
+   * @memberOf Generator
+   */
   public generate(): Promise<void> {
+    return checkInstallAsync().then(() => {
+      const settings = getSettings();
+      const homeVSCodeType: string = path.join(settings.homeVSCodeDir, this.type);
+      const homeUserVSCodeType: string = path.join(settings.homeUserVsCodeDir, this.type);
+      return existsOrMkdirAsync(settings.workspaceVSCode)
+        .then(() => {
+          return readdirAsync(homeVSCodeType);
+        })
+        .then((files) => {
+          for (const file of files) {
+            let filePath = path.join(homeVSCodeType, file);
+            const userFilePath = path.join(homeUserVSCodeType, file);
+            if (fs.existsSync(userFilePath)) {
+              filePath = userFilePath;
+            }
+            copyFileSync(
+              filePath, path.join(settings.workspaceVSCode, file)
+            );
+          }
+        })
+        .catch((err) => { console.error("err", err); });
+    })
+  }
+
+  /**
+   * //todo
+   * customize your own json file
+   * 
+   * @returns {Promise<void>}
+   * 
+   * @memberOf Generator
+   */
+  public customize(): Promise<void> {
     const settings = getSettings();
     const homeVSCodeType: string = path.join(settings.homeVSCodeDir, this.type);
     const homeUserVSCodeType: string = path.join(settings.homeUserVsCodeDir, this.type);
-    return existsAsync(settings.workspaceVSCode).then((exists): void => {
-      let mkdir = null;
-      if (!exists) {
-        mkdir = mkdirAsync(settings.workspaceVSCode);
-      } else {
-        mkdir = Promise.resolve(() => { });
-      }
-      return mkdir.then(() => {
-        return readdirAsync(homeVSCodeType)
-          .then((files) => {
-            for (const file of files) {
-              let filePath = path.join(homeVSCodeType, file);
-              const userFilePath = path.join(homeUserVSCodeType, file);
-              if (fs.existsSync(userFilePath)) {
-                filePath = userFilePath;
-              }
-              copyFileSync(
-                filePath, path.join(settings.workspaceVSCode, file)
-              );
-            }
-          })
-          .catch((err) => { console.error(err); });
-      });
+    return checkInstallAsync().then(() => {
+      return existsOrMkdirAsync(settings.homeUserVsCodeDir);
+    }).then(() => {
+      return existsOrMkdirAsync(homeUserVSCodeType);
+      }).then(() => {
+        //todo
     });
   }
 }
@@ -142,7 +257,9 @@ class Generator {
 export function activate(context: ExtensionContext) {
   const install: Disposable =
     commands.registerCommand("extension.installDotVSCodeGenerator", () => {
-      installAsync().catch((err) => {
+      uninstallAsync().then(() => {
+        return installAsync();
+      }).catch((err) => {
         window.showErrorMessage(JSON.stringify(err));
       });
     });
@@ -156,7 +273,7 @@ export function activate(context: ExtensionContext) {
 
   const generate: Disposable =
     commands.registerCommand("extension.generateDotVSCode", () => {
-      window.showQuickPick(ProjectType).then((token) => {
+      window.showQuickPick(projectType).then((token) => {
         if (token === undefined) {
           return;
         }
@@ -164,6 +281,17 @@ export function activate(context: ExtensionContext) {
         return generator.generate();
       }).then(() => {
         window.showInformationMessage("Generating completed!");
+      });
+    });
+  
+  const customize: Disposable =
+    commands.registerCommand("extenstion.customizeDotVSCode", () => {
+      window.showQuickPick(projectType).then((token) => {
+        if (token === undefined) {
+          return;
+        }
+        const generator = new Generator(token);
+        return generator.customize();
       });
     });
 

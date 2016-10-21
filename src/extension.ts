@@ -327,6 +327,7 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(install);
   context.subscriptions.push(uninstall);
   context.subscriptions.push(generate);
+  context.subscriptions.push(customize);
 }
 
 export function deactivate() {}

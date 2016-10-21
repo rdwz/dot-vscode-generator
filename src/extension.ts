@@ -254,11 +254,24 @@ class Generator {
       // return vscode.commands.executeCommand("vscode.open", )
     }).then((files: Array<string>) => {
       return window.showQuickPick(files);
-    }).then((filename) => {
-      return Promise.all([
-        vscode.commands.registerCommand("vscode.open", path.join(homeVSCodeType, filename)),
-        vscode.commands.registerCommand("vscode.open", path.join(homeUserVSCodeType, filename))
-      ]);
+      }).then((filename) => {
+        const originFile = path.join(homeVSCodeType, filename);
+        const distFile = path.join(homeUserVSCodeType, filename);
+
+        return existsAsync(distFile).then((exists) => {
+          if (!exists) {
+            copyFileSync(originFile, distFile);
+          }
+          return Promise.all([
+            vscode.workspace.openTextDocument(path.join(homeVSCodeType, filename)),
+            vscode.workspace.openTextDocument(path.join(homeUserVSCodeType, filename))
+          ]);
+        });
+      }).then(([origin, dist]) => {
+        return Promise.all([
+          vscode.window.showTextDocument(origin),
+          vscode.window.showTextDocument(dist, 2)
+        ]);
     }).catch((err) => {
       console.error("err", JSON.stringify(err));
     });

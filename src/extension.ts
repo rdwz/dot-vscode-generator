@@ -248,8 +248,19 @@ class Generator {
       return existsOrMkdirAsync(settings.homeUserVsCodeDir);
     }).then(() => {
       return existsOrMkdirAsync(homeUserVSCodeType);
-      }).then(() => {
-        //todo
+    }).then(() => {
+      //todo
+      return readdirAsync(homeVSCodeType);
+      // return vscode.commands.executeCommand("vscode.open", )
+    }).then((files: Array<string>) => {
+      return window.showQuickPick(files);
+    }).then((filename) => {
+      return Promise.all([
+        vscode.commands.registerCommand("vscode.open", path.join(homeVSCodeType, filename)),
+        vscode.commands.registerCommand("vscode.open", path.join(homeUserVSCodeType, filename))
+      ]);
+    }).catch((err) => {
+      console.error("err", JSON.stringify(err));
     });
   }
 }

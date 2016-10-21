@@ -34,6 +34,10 @@
       {
         "command": "extension.generateDotVSCode",
         "title": "dot-vscode-generator:generate"
+      },
+      {
+        "command": "extenstion.customizeDotVSCode",
+        "title": "dot-vscode-generator:customize"
       }
     ]
   },

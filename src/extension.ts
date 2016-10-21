@@ -67,7 +67,8 @@ function existsOrMkdirAsync(path: string): Promise<void> {
       }
       return Promise.resolve(() => { });
     }).catch((err) => {
-      console.error("wtf??", err);
+      vscode.window.showErrorMessage(JSON.stringify(err));
+      console.error(err);
     });
 };
 
@@ -228,8 +229,11 @@ class Generator {
             );
           }
         })
-        .catch((err) => { console.error("err", err); });
-    })
+        .catch((err) => {
+          vscode.window.showErrorMessage(JSON.stringify(err));
+          console.error("err", err);
+        });
+    });
   }
 
   /**
@@ -273,6 +277,7 @@ class Generator {
           vscode.window.showTextDocument(dist, 2)
         ]);
     }).catch((err) => {
+      vscode.window.showErrorMessage(JSON.stringify(err));
       console.error("err", JSON.stringify(err));
     });
   }
